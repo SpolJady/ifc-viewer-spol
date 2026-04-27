@@ -147,11 +147,18 @@ loader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
 let model = null;
 let modelID = null;
 let selectedSubset = null;
+let edgeLines = null;
 
 const highlightMaterial = new THREE.MeshBasicMaterial({
   color: 0xffff00,
   transparent: true,
-  opacity: 0.18,
+  opacity: 0.14,
+  depthTest: false,
+  depthWrite: false
+});
+
+const edgeMaterial = new THREE.LineBasicMaterial({
+  color: 0xffcc00,
   depthTest: false,
   depthWrite: false
 });
@@ -166,10 +173,7 @@ async function loadIFC(url) {
       model = null;
     }
 
-    if (selectedSubset) {
-      loader.ifcManager.removeSubset(modelID);
-      selectedSubset = null;
-    }
+    clearSelection();
 
     const loadedModel = await loader.loadAsync(url);
 
@@ -216,6 +220,19 @@ document.getElementById("file-input").addEventListener("change", event => {
 
 if (fileUrl) {
   loadIFC(fileUrl);
+}
+
+function clearSelection() {
+  if (selectedSubset && modelID !== null) {
+    loader.ifcManager.removeSubset(modelID);
+    selectedSubset = null;
+  }
+
+  if (edgeLines) {
+    scene.remove(edgeLines);
+    edgeLines.geometry.dispose();
+    edgeLines = null;
+  }
 }
 
 function getValue(value) {
@@ -290,10 +307,7 @@ async function showProps(expressID) {
 
 function highlightElement(expressID) {
   try {
-    if (selectedSubset) {
-      loader.ifcManager.removeSubset(modelID);
-      selectedSubset = null;
-    }
+    clearSelection();
 
     selectedSubset = loader.ifcManager.createSubset({
       modelID: modelID,
@@ -304,6 +318,16 @@ function highlightElement(expressID) {
     });
 
     selectedSubset.renderOrder = 999;
+
+    const edgesGeometry = new THREE.EdgesGeometry(selectedSubset.geometry);
+    edgeLines = new THREE.LineSegments(edgesGeometry, edgeMaterial);
+
+    edgeLines.position.copy(selectedSubset.position);
+    edgeLines.rotation.copy(selectedSubset.rotation);
+    edgeLines.scale.copy(selectedSubset.scale);
+    edgeLines.renderOrder = 1000;
+
+    scene.add(edgeLines);
 
   } catch (error) {
     console.warn("Não foi possível destacar o elemento:", error);
