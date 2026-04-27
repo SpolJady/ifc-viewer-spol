@@ -9,340 +9,189 @@
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
       "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
-      "three/examples/jsm/utils/BufferGeometryUtils": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/utils/BufferGeometryUtils.js",
-      "three/examples/jsm/utils/BufferGeometryUtils.js": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/utils/BufferGeometryUtils.js",
       "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
     }
   }
   </script>
 
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-      background: #f2f2f2;
-    }
+    body { margin:0; overflow:hidden; font-family:Arial; background:#f2f2f2; }
 
-    #viewer-container {
-      width: 100vw;
-      height: 100vh;
-    }
+    #viewer-container { width:100vw; height:100vh; }
 
     #panel {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      z-index: 10;
-      width: 300px;
-      max-height: 85vh;
-      overflow: auto;
-      background: white;
-      padding: 12px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-      font-size: 13px;
+      position:absolute; top:12px; left:12px;
+      width:300px; max-height:85vh;
+      overflow:auto;
+      background:white; padding:12px;
+      border-radius:8px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      font-size:13px;
     }
 
-    #project-title {
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-
-    #status {
-      margin-top: 8px;
-      color: #444;
-    }
-
-    #properties {
-      margin-top: 12px;
-      border-top: 1px solid #ddd;
-      padding-top: 10px;
-    }
-
-    .prop-title {
-      font-weight: bold;
-      margin: 8px 0 4px;
-      font-size: 14px;
-    }
-
-    .prop-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      border-bottom: 1px solid #eee;
-      padding: 5px 0;
-    }
-
-    .prop-key {
-      font-weight: bold;
-      color: #333;
-      max-width: 50%;
-    }
-
-    .prop-value {
-      color: #555;
-      text-align: right;
-      word-break: break-word;
-      max-width: 50%;
-    }
+    .prop-title { font-weight:bold; margin-top:10px; }
+    .prop-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #eee; }
   </style>
 </head>
 
 <body>
 
-  <div id="panel">
-    <div id="project-title">Projeto</div>
-    <input type="file" id="file-input" accept=".ifc" />
-    <div id="status">Aguardando arquivo IFC...</div>
-    <div id="properties">Clique em um elemento para ver o PSet SPOL EV.</div>
-  </div>
+<div id="panel">
+  <div id="project-title">Projeto</div>
+  <input type="file" id="file-input" />
+  <div id="status">Aguardando IFC...</div>
+  <div id="properties">Clique em um elemento</div>
+</div>
 
-  <div id="viewer-container"></div>
+<div id="viewer-container"></div>
 
-  <script type="module">
-    import * as THREE from "three";
-    import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-    import { IFCLoader } from "https://cdn.jsdelivr.net/npm/web-ifc-three@0.0.126/IFCLoader.js";
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { IFCLoader } from "https://cdn.jsdelivr.net/npm/web-ifc-three@0.0.126/IFCLoader.js";
 
-    const container = document.getElementById("viewer-container");
-    const status = document.getElementById("status");
-    const propertiesPanel = document.getElementById("properties");
-    const projectTitle = document.getElementById("project-title");
+const container = document.getElementById("viewer-container");
+const status = document.getElementById("status");
+const propertiesPanel = document.getElementById("properties");
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const fileUrl = urlParams.get("file");
-    const projectName = urlParams.get("nome") || urlParams.get("projeto") || "Projeto";
+const urlParams = new URLSearchParams(window.location.search);
+const fileUrl = urlParams.get("file");
+const projectName = urlParams.get("nome") || "Projeto";
+document.getElementById("project-title").innerText = decodeURIComponent(projectName);
 
-    projectTitle.innerText = decodeURIComponent(projectName);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf2f2f2);
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf2f2f2);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100000);
+camera.position.set(30,30,30);
 
-    const camera = new THREE.PerspectiveCamera(
-      60,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100000
-    );
-    camera.position.set(30, 30, 30);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+container.appendChild(renderer.domElement);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+scene.add(new THREE.AmbientLight(0xffffff,0.8));
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(20,40,20);
+scene.add(light);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const grid = new THREE.GridHelper(100,100);
+scene.add(grid);
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(20, 40, 20);
-    scene.add(light);
+const ifcLoader = new IFCLoader();
+ifcLoader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
 
-    const grid = new THREE.GridHelper(100, 100);
-    grid.position.y = -1;
-    scene.add(grid);
+let currentModel = null;
+let currentModelID = 0;
+let selectedSubset = null;
 
-    const ifcLoader = new IFCLoader();
-    ifcLoader.ifcManager.setWasmPath(
-      "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/"
-    );
+async function loadIFC(url){
+  status.innerText = "Carregando...";
 
-    let currentModel = null;
-    let currentModelID = 0;
-    let selectedOutline = null;
+  if(currentModel) scene.remove(currentModel);
 
-    async function loadIFC(url) {
-      status.innerText = "Carregando IFC...";
-      propertiesPanel.innerHTML = "Clique em um elemento para ver o PSet SPOL EV.";
+  const model = await ifcLoader.loadAsync(url);
+  currentModel = model;
+  currentModelID = model.modelID;
 
-      try {
-        if (currentModel) {
-          scene.remove(currentModel);
-        }
+  scene.add(model);
 
-        if (selectedOutline) {
-          scene.remove(selectedOutline);
-          selectedOutline.geometry.dispose();
-          selectedOutline.material.dispose();
-          selectedOutline = null;
-        }
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.sub(center);
 
-        const model = await ifcLoader.loadAsync(url);
-        currentModel = model;
-        currentModelID = model.modelID;
+  const newBox = new THREE.Box3().setFromObject(model);
+  grid.position.y = newBox.min.y - 0.5;
 
-        scene.add(model);
+  status.innerText = "Modelo carregado";
+}
 
-        const boxOriginal = new THREE.Box3().setFromObject(model);
-        const center = boxOriginal.getCenter(new THREE.Vector3());
-        const size = boxOriginal.getSize(new THREE.Vector3());
+document.getElementById("file-input").addEventListener("change", e=>{
+  const file = e.target.files[0];
+  if(file){
+    loadIFC(URL.createObjectURL(file));
+  }
+});
 
-        model.position.sub(center);
+if(fileUrl) loadIFC(fileUrl);
 
-        const boxCentered = new THREE.Box3().setFromObject(model);
-        grid.position.y = boxCentered.min.y - 0.5;
+function normalizeName(name){
+  return String(name).toUpperCase().replaceAll("_"," ").trim();
+}
 
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const dist = maxDim * 1.5;
+async function showProps(id){
+  const sets = await ifcLoader.ifcManager.getPropertySets(currentModelID,id,true);
 
-        camera.position.set(dist, dist, dist);
-        camera.near = maxDim / 100;
-        camera.far = maxDim * 100;
-        camera.updateProjectionMatrix();
+  const pset = sets.find(s => normalizeName(s.Name)==="PSET SPOL EV");
 
-        controls.target.set(0, 0, 0);
-        controls.update();
+  if(!pset){
+    propertiesPanel.innerHTML = "Sem PSet_SPOL_EV";
+    return;
+  }
 
-        status.innerText = "Modelo carregado com sucesso.";
+  let html = "<div class='prop-title'>PSet SPOL EV</div>";
 
-      } catch (error) {
-        console.error(error);
-        status.innerText = "Erro ao carregar IFC. Veja o Console.";
-      }
-    }
+  (pset.HasProperties||[]).forEach(p=>{
+    html += `<div class='prop-row'><div>${p.Name}</div><div>${p.NominalValue?.value}</div></div>`;
+  });
 
-    document.getElementById("file-input").addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
+  propertiesPanel.innerHTML = html;
+}
 
-      const url = URL.createObjectURL(file);
-      loadIFC(url);
-    });
+function highlight(id){
+  if(selectedSubset){
+    ifcLoader.ifcManager.removeSubset(currentModelID, undefined, selectedSubset.material);
+    selectedSubset = null;
+  }
 
-    if (fileUrl) {
-      loadIFC(fileUrl);
-    }
+  selectedSubset = ifcLoader.ifcManager.createSubset({
+    modelID: currentModelID,
+    ids: [id],
+    material: new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      transparent:true,
+      opacity:0.4,
+      depthTest:false
+    }),
+    scene: scene,
+    removePrevious: true
+  });
+}
 
-    function formatIFCValue(value) {
-      if (value === null || value === undefined) return "";
-      if (typeof value === "object" && "value" in value) return value.value;
-      if (typeof value === "object") return JSON.stringify(value);
-      return value;
-    }
+renderer.domElement.addEventListener("click", async (event)=>{
 
-    function normalizePsetName(name) {
-      return String(formatIFCValue(name))
-        .toUpperCase()
-        .replaceAll("_", " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    }
+  const mouse = new THREE.Vector2(
+    (event.clientX/window.innerWidth)*2-1,
+    -(event.clientY/window.innerHeight)*2+1
+  );
 
-    async function showElementProperties(expressID) {
-      try {
-        const propertySets = await ifcLoader.ifcManager.getPropertySets(
-          currentModelID,
-          expressID,
-          true
-        );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse,camera);
 
-        const psetSPOL = propertySets.find(pset => {
-          const name = normalizePsetName(pset.Name);
-          return name === "PSET SPOL EV";
-        });
+  const found = raycaster.intersectObject(currentModel,true);
 
-        if (!psetSPOL) {
-          propertiesPanel.innerHTML = `
-            <div class="prop-title">PSet SPOL EV</div>
-            <div>Este elemento não possui PSet SPOL EV.</div>
-          `;
-          return;
-        }
+  if(!found.length) return;
 
-        let html = `<div class="prop-title">PSet SPOL EV</div>`;
+  const expressID = ifcLoader.ifcManager.getExpressId(
+    found[0].object.geometry,
+    found[0].faceIndex
+  );
 
-        const props = psetSPOL.HasProperties || [];
+  highlight(expressID);
+  showProps(expressID);
 
-        for (const prop of props) {
-          const name = formatIFCValue(prop.Name);
-          const value = formatIFCValue(prop.NominalValue);
+});
 
-          html += `
-            <div class="prop-row">
-              <div class="prop-key">${name}</div>
-              <div class="prop-value">${value}</div>
-            </div>
-          `;
-        }
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene,camera);
+}
 
-        propertiesPanel.innerHTML = html;
+animate();
 
-      } catch (error) {
-        console.error(error);
-        propertiesPanel.innerHTML = "Erro ao ler propriedades do elemento.";
-      }
-    }
-
-    function highlightSelectedElement(intersection) {
-      if (selectedOutline) {
-        scene.remove(selectedOutline);
-        selectedOutline.geometry.dispose();
-        selectedOutline.material.dispose();
-        selectedOutline = null;
-      }
-
-      const outlineGeometry = new THREE.EdgesGeometry(intersection.object.geometry);
-
-      const outlineMaterial = new THREE.LineBasicMaterial({
-        color: 0xffff00
-      });
-
-      selectedOutline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
-
-      selectedOutline.position.copy(intersection.object.position);
-      selectedOutline.rotation.copy(intersection.object.rotation);
-      selectedOutline.scale.copy(intersection.object.scale);
-
-      scene.add(selectedOutline);
-    }
-
-    renderer.domElement.addEventListener("click", async (event) => {
-      if (!currentModel) return;
-
-      const bounds = renderer.domElement.getBoundingClientRect();
-
-      const mouse = new THREE.Vector2(
-        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
-        -((event.clientY - bounds.top) / bounds.height) * 2 + 1
-      );
-
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouse, camera);
-
-      const intersects = raycaster.intersectObject(currentModel, true);
-
-      if (intersects.length === 0) return;
-
-      const intersection = intersects[0];
-
-      highlightSelectedElement(intersection);
-
-      const expressID = ifcLoader.ifcManager.getExpressId(
-        intersection.object.geometry,
-        intersection.faceIndex
-      );
-
-      showElementProperties(expressID);
-    });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-
-    animate();
-
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
-
+</script>
 </body>
 </html>
