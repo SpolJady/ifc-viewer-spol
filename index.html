@@ -44,10 +44,37 @@ body {
   z-index: 10;
 }
 
+#panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 #title {
   font-weight: bold;
   font-size: 14px;
   margin-bottom: 6px;
+}
+
+#close-panel {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+#open-panel {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 11;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 #status {
@@ -90,8 +117,14 @@ body {
 
 <body>
 
+<button id="open-panel">Mostrar dados</button>
+
 <div id="panel">
-  <div id="title">Projeto</div>
+  <div id="panel-header">
+    <div id="title">Projeto</div>
+    <button id="close-panel">×</button>
+  </div>
+
   <input type="file" id="file-input" accept=".ifc">
   <div id="status">Aguardando IFC...</div>
   <div id="props">Clique em um elemento para ver o PSet SPOL EV.</div>
@@ -112,6 +145,18 @@ document.getElementById("title").innerText = decodeURIComponent(nome);
 
 const status = document.getElementById("status");
 const propsPanel = document.getElementById("props");
+const panel = document.getElementById("panel");
+const openPanelBtn = document.getElementById("open-panel");
+
+document.getElementById("close-panel").addEventListener("click", () => {
+  panel.style.display = "none";
+  openPanelBtn.style.display = "block";
+});
+
+openPanelBtn.addEventListener("click", () => {
+  panel.style.display = "block";
+  openPanelBtn.style.display = "none";
+});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf2f2f2);
@@ -152,7 +197,7 @@ let edgeLines = null;
 const highlightMaterial = new THREE.MeshBasicMaterial({
   color: 0xffff00,
   transparent: true,
-  opacity: 0.14,
+  opacity: 0.10,
   depthTest: false,
   depthWrite: false
 });
@@ -233,6 +278,8 @@ function clearSelection() {
     edgeLines.geometry.dispose();
     edgeLines = null;
   }
+
+  propsPanel.innerHTML = "Clique em um elemento para ver o PSet SPOL EV.";
 }
 
 function getValue(value) {
@@ -317,6 +364,9 @@ function highlightElement(expressID) {
       material: highlightMaterial
     });
 
+    selectedSubset.position.copy(model.position);
+    selectedSubset.rotation.copy(model.rotation);
+    selectedSubset.scale.copy(model.scale);
     selectedSubset.renderOrder = 999;
 
     const edgesGeometry = new THREE.EdgesGeometry(selectedSubset.geometry);
@@ -349,7 +399,10 @@ renderer.domElement.addEventListener("click", async event => {
 
   const intersects = raycaster.intersectObject(model, true);
 
-  if (!intersects.length) return;
+  if (!intersects.length) {
+    clearSelection();
+    return;
+  }
 
   const intersection = intersects[0];
 
@@ -358,12 +411,19 @@ renderer.domElement.addEventListener("click", async event => {
     intersection.faceIndex
   );
 
-  console.log("ExpressID selecionado:", expressID);
-
-  if (!expressID) return;
+  if (!expressID) {
+    clearSelection();
+    return;
+  }
 
   highlightElement(expressID);
   showProps(expressID);
+});
+
+window.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    clearSelection();
+  }
 });
 
 function animate() {
