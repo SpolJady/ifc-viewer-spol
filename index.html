@@ -153,6 +153,7 @@
 
     let currentModel = null;
     let currentModelID = 0;
+    let selectedOutline = null;
 
     async function loadIFC(url) {
       status.innerText = "Carregando IFC...";
@@ -161,6 +162,13 @@
       try {
         if (currentModel) {
           scene.remove(currentModel);
+        }
+
+        if (selectedOutline) {
+          scene.remove(selectedOutline);
+          selectedOutline.geometry.dispose();
+          selectedOutline.material.dispose();
+          selectedOutline = null;
         }
 
         const model = await ifcLoader.loadAsync(url);
@@ -269,6 +277,29 @@
       }
     }
 
+    function highlightSelectedElement(intersection) {
+      if (selectedOutline) {
+        scene.remove(selectedOutline);
+        selectedOutline.geometry.dispose();
+        selectedOutline.material.dispose();
+        selectedOutline = null;
+      }
+
+      const outlineGeometry = new THREE.EdgesGeometry(intersection.object.geometry);
+
+      const outlineMaterial = new THREE.LineBasicMaterial({
+        color: 0xffff00
+      });
+
+      selectedOutline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+
+      selectedOutline.position.copy(intersection.object.position);
+      selectedOutline.rotation.copy(intersection.object.rotation);
+      selectedOutline.scale.copy(intersection.object.scale);
+
+      scene.add(selectedOutline);
+    }
+
     renderer.domElement.addEventListener("click", async (event) => {
       if (!currentModel) return;
 
@@ -287,6 +318,8 @@
       if (intersects.length === 0) return;
 
       const intersection = intersects[0];
+
+      highlightSelectedElement(intersection);
 
       const expressID = ifcLoader.ifcManager.getExpressId(
         intersection.object.geometry,
