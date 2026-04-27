@@ -147,10 +147,11 @@ loader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
 let model = null;
 let modelID = null;
 let selectedSubset = null;
-let highlightMaterial = new THREE.MeshBasicMaterial({
+
+const highlightMaterial = new THREE.MeshBasicMaterial({
   color: 0xffff00,
   transparent: true,
-  opacity: 0.45,
+  opacity: 0.18,
   depthTest: false,
   depthWrite: false
 });
@@ -163,6 +164,11 @@ async function loadIFC(url) {
     if (model) {
       scene.remove(model);
       model = null;
+    }
+
+    if (selectedSubset) {
+      loader.ifcManager.removeSubset(modelID);
+      selectedSubset = null;
     }
 
     const loadedModel = await loader.loadAsync(url);
@@ -229,7 +235,11 @@ function normalizeName(name) {
 
 function isSPOLPset(pset) {
   const name = normalizeName(pset.Name);
-  return name.includes("PSET SPOL EV") || name.includes("PSETSPOL EV") || name.includes("PSETSPOL");
+  return (
+    name.includes("PSET SPOL EV") ||
+    name.includes("PSETSPOL EV") ||
+    name.includes("PSETSPOL")
+  );
 }
 
 async function showProps(expressID) {
@@ -239,9 +249,8 @@ async function showProps(expressID) {
     const directPsets = await loader.ifcManager.getPropertySets(modelID, expressID, true);
     if (directPsets) allPsets = allPsets.concat(directPsets);
 
-    let typePsets = [];
     try {
-      typePsets = await loader.ifcManager.getTypeProperties(modelID, expressID, true);
+      const typePsets = await loader.ifcManager.getTypeProperties(modelID, expressID, true);
       if (typePsets) allPsets = allPsets.concat(typePsets);
     } catch (e) {
       console.warn("Sem propriedades de tipo para este elemento.");
@@ -293,6 +302,8 @@ function highlightElement(expressID) {
       removePrevious: true,
       material: highlightMaterial
     });
+
+    selectedSubset.renderOrder = 999;
 
   } catch (error) {
     console.warn("Não foi possível destacar o elemento:", error);
