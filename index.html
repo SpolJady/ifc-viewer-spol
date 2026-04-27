@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>IFC Viewer SPOL</title>
+  <title>Viewer IFC</title>
 
   <script type="importmap">
   {
@@ -29,31 +29,76 @@
       height: 100vh;
     }
 
-    #upload {
+    #panel {
       position: absolute;
       top: 12px;
       left: 12px;
       z-index: 10;
+      width: 300px;
+      max-height: 85vh;
+      overflow: auto;
       background: white;
-      padding: 10px;
+      padding: 12px;
       border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
       font-size: 13px;
     }
 
+    #project-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
     #status {
-      margin-top: 6px;
+      margin-top: 8px;
       color: #444;
+    }
+
+    #properties {
+      margin-top: 12px;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+
+    .prop-title {
+      font-weight: bold;
+      margin: 8px 0 4px;
+    }
+
+    .prop-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid #eee;
+      padding: 4px 0;
+    }
+
+    .prop-key {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .prop-value {
+      color: #555;
+      text-align: right;
+      word-break: break-word;
     }
   </style>
 </head>
 
 <body>
 
-  <div id="upload">
-    <strong>IFC Viewer SPOL</strong><br><br>
+  <div id="panel">
+    <div id="project-title">Projeto</div>
+
     <input type="file" id="file-input" accept=".ifc" />
+
     <div id="status">Aguardando arquivo IFC...</div>
+
+    <div id="properties">
+      Clique em um elemento para ver propriedades.
+    </div>
   </div>
 
   <div id="viewer-container"></div>
@@ -65,6 +110,14 @@
 
     const container = document.getElementById("viewer-container");
     const status = document.getElementById("status");
+    const propertiesPanel = document.getElementById("properties");
+    const projectTitle = document.getElementById("project-title");
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileUrl = urlParams.get("file");
+    const projectName = urlParams.get("nome") || urlParams.get("projeto") || "Projeto";
+
+    projectTitle.innerText = decodeURIComponent(projectName);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf2f2f2);
@@ -75,6 +128,7 @@
       0.1,
       100000
     );
+
     camera.position.set(30, 30, 30);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -92,17 +146,21 @@
     scene.add(light);
 
     const grid = new THREE.GridHelper(100, 100);
+    grid.position.y = -1;
     scene.add(grid);
 
     const ifcLoader = new IFCLoader();
+
     ifcLoader.ifcManager.setWasmPath(
       "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/"
     );
 
     let currentModel = null;
+    let currentModelID = 0;
 
     async function loadIFC(url) {
       status.innerText = "Carregando IFC...";
+      propertiesPanel.innerHTML = "Clique em um elemento para ver propriedades.";
 
       try {
         if (currentModel) {
@@ -111,13 +169,18 @@
 
         const model = await ifcLoader.loadAsync(url);
         currentModel = model;
+        currentModelID = model.modelID;
+
         scene.add(model);
 
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
+        const boxOriginal = new THREE.Box3().setFromObject(model);
+        const center = boxOriginal.getCenter(new THREE.Vector3());
+        const size = boxOriginal.getSize(new THREE.Vector3());
 
         model.position.sub(center);
+
+        const boxCentered = new THREE.Box3().setFromObject(model);
+        grid.position.y = boxCentered.min.y - 0.5;
 
         const maxDim = Math.max(size.x, size.y, size.z);
         const dist = maxDim * 1.5;
@@ -146,12 +209,122 @@
       loadIFC(url);
     });
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const fileUrl = urlParams.get("file");
-
     if (fileUrl) {
       loadIFC(fileUrl);
     }
+
+    function formatIFCValue(value) {
+      if (value === null || value === undefined) return "";
+      if (typeof value === "object" && "value" in value) return value.value;
+      if (typeof value === "object") return JSON.stringify(value);
+      return value;
+    }
+
+    function renderProperties(title, data) {
+      let html = `<div class="prop-title">${title}</div>`;
+
+      for (const key in data) {
+        const value = formatIFCValue(data[key]);
+
+        if (
+          value === "" ||
+          key === "type" ||
+          key === "expressID" ||
+          typeof value === "object"
+        ) {
+          continue;
+        }
+
+        html += `
+          <div class="prop-row">
+            <div class="prop-key">${key}</div>
+            <div class="prop-value">${value}</div>
+          </div>
+        `;
+      }
+
+      return html;
+    }
+
+    async function showElementProperties(expressID) {
+      try {
+        const itemProps = await ifcLoader.ifcManager.getItemProperties(
+          currentModelID,
+          expressID,
+          true
+        );
+
+        const propertySets = await ifcLoader.ifcManager.getPropertySets(
+          currentModelID,
+          expressID,
+          true
+        );
+
+        let html = "";
+
+        html += renderProperties("Elemento", itemProps);
+
+        const psetSPOL = propertySets.find(pset => {
+          const name = formatIFCValue(pset.Name);
+          return name === "Pset_SPOL_EV";
+        });
+
+        if (psetSPOL) {
+          html += `<div class="prop-title">Pset_SPOL_EV</div>`;
+
+          const props = psetSPOL.HasProperties || [];
+
+          for (const prop of props) {
+            const name = formatIFCValue(prop.Name);
+            const value = formatIFCValue(prop.NominalValue);
+
+            html += `
+              <div class="prop-row">
+                <div class="prop-key">${name}</div>
+                <div class="prop-value">${value}</div>
+              </div>
+            `;
+          }
+        } else {
+          html += `
+            <div class="prop-title">Pset_SPOL_EV</div>
+            <div>Este elemento não possui Pset_SPOL_EV.</div>
+          `;
+        }
+
+        propertiesPanel.innerHTML = html;
+
+      } catch (error) {
+        console.error(error);
+        propertiesPanel.innerHTML = "Erro ao ler propriedades do elemento.";
+      }
+    }
+
+    renderer.domElement.addEventListener("click", async (event) => {
+      if (!currentModel) return;
+
+      const bounds = renderer.domElement.getBoundingClientRect();
+
+      const mouse = new THREE.Vector2(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1
+      );
+
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObject(currentModel, true);
+
+      if (intersects.length === 0) return;
+
+      const intersection = intersects[0];
+      const expressID = ifcLoader.ifcManager.getExpressId(
+        intersection.object.geometry,
+        intersection.faceIndex
+      );
+
+      showElementProperties(expressID);
+    });
 
     function animate() {
       requestAnimationFrame(animate);
