@@ -223,23 +223,44 @@ renderer.domElement.addEventListener("click", async (event) => {
   });
 
   // 🔥 mostra propriedades corretas
-  showProps(expressID);
+async function showProps(id){
 
-});
+  let psets = [];
 
-// LOOP
-function animate(){
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene,camera);
+  // 🔹 propriedades diretas
+  const direct = await ifcLoader.ifcManager.getPropertySets(modelID, id, true);
+  if (direct) psets = psets.concat(direct);
+
+  // 🔹 propriedades via TYPE (ESSENCIAL)
+  const type = await ifcLoader.ifcManager.getTypeProperties(modelID, id, true);
+  if (type) psets = psets.concat(type);
+
+  // 🔹 procura PSET_SPOL_EV
+  const pset = psets.find(s =>
+    String(s.Name).toUpperCase().replaceAll("_"," ").includes("PSET SPOL EV")
+  );
+
+  if(!pset){
+    propertiesPanel.innerHTML = "Sem PSet_SPOL_EV";
+    return;
+  }
+
+  let html = "<div class='prop-title'>PSet SPOL EV</div>";
+
+  (pset.HasProperties || []).forEach(p=>{
+    const name = p.Name;
+    const value = p.NominalValue?.value;
+
+    html += `
+      <div class='prop-row'>
+        <div>${name}</div>
+        <div>${value}</div>
+      </div>
+    `;
+  });
+
+  propertiesPanel.innerHTML = html;
 }
-animate();
-
-window.addEventListener("resize",()=>{
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
 </script>
 
 </body>
