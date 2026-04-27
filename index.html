@@ -1,266 +1,101 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<title>Viewer IFC</title>
+<meta charset="UTF-8">
+<title>IFC Viewer</title>
 
 <script type="importmap">
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
-    "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
+    "three/examples/jsm/controls/OrbitControls.js":
+    "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
     "three/examples/jsm/utils/BufferGeometryUtils":
     "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/utils/BufferGeometryUtils.js",
-    "three/examples/jsm/utils/BufferGeometryUtils.js":
-    "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/utils/BufferGeometryUtils.js",
-    "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
+    "web-ifc":
+    "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
   }
 }
 </script>
 
 <style>
-body { margin:0; overflow:hidden; font-family:Arial; background:#f2f2f2; }
-#viewer-container { width:100vw; height:100vh; }
-
+body { margin:0; overflow:hidden; font-family:Arial; }
+#viewer { width:100vw; height:100vh; }
 #panel {
-  position:absolute; top:12px; left:12px;
-  width:300px; max-height:85vh;
-  overflow:auto;
-  background:white; padding:12px;
+  position:absolute; top:10px; left:10px;
+  background:white; padding:10px;
   border-radius:8px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.25);
-  font-size:13px;
 }
-
-.prop-title { font-weight:bold; margin-top:10px; }
-.prop-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #eee; }
 </style>
 </head>
 
 <body>
 
 <div id="panel">
-  <div id="project-title">Projeto</div>
-  <input type="file" id="file-input" />
-  <div id="status">Aguardando IFC...</div>
-  <div id="properties">Clique em um elemento</div>
+  <div id="title">Projeto</div>
+  <div id="status">Carregando...</div>
 </div>
 
-<div id="viewer-container"></div>
+<div id="viewer"></div>
 
 <script type="module">
+
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { IFCLoader } from "https://cdn.jsdelivr.net/npm/web-ifc-three@0.0.126/IFCLoader.js";
 
-// UI
-const status = document.getElementById("status");
-const propertiesPanel = document.getElementById("properties");
-
 const params = new URLSearchParams(window.location.search);
 const fileUrl = params.get("file");
-const projectName = params.get("nome") || "Projeto";
-document.getElementById("project-title").innerText = decodeURIComponent(projectName);
+const nome = params.get("nome") || "Projeto";
 
-// SCENE
+document.getElementById("title").innerText = decodeURIComponent(nome);
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf2f2f2);
+scene.background = new THREE.Color(0xf0f0f0);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100000);
-camera.position.set(30,30,30);
+camera.position.set(20,20,20);
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.getElementById("viewer-container").appendChild(renderer.domElement);
+document.getElementById("viewer").appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
 
-// LIGHT
 scene.add(new THREE.AmbientLight(0xffffff,0.8));
 const light = new THREE.DirectionalLight(0xffffff,1);
 light.position.set(20,40,20);
 scene.add(light);
 
-// GRID
 const grid = new THREE.GridHelper(100,100);
 scene.add(grid);
 
-// IFC
-const ifcLoader = new IFCLoader();
-ifcLoader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
+const loader = new IFCLoader();
+loader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
 
-let currentModel = null;
-let modelID = 0;
-let selectedSubset = null;
+let model;
 
-// LOAD
 async function loadIFC(url){
-  status.innerText = "Carregando...";
+  const m = await loader.loadAsync(url);
+  model = m;
+  scene.add(m);
 
-  if(currentModel) scene.remove(currentModel);
-
-  const model = await ifcLoader.loadAsync(url);
-  currentModel = model;
-  modelID = model.modelID;
-
-  scene.add(model);
-
-  const box = new THREE.Box3().setFromObject(model);
+  const box = new THREE.Box3().setFromObject(m);
   const center = box.getCenter(new THREE.Vector3());
-  model.position.sub(center);
+  m.position.sub(center);
 
-  const newBox = new THREE.Box3().setFromObject(model);
-  grid.position.y = newBox.min.y - 0.5;
-
-  status.innerText = "Modelo carregado";
+  document.getElementById("status").innerText = "Modelo carregado";
 }
-
-// FILE INPUT
-document.getElementById("file-input").addEventListener("change", e=>{
-  const file = e.target.files[0];
-  if(file){
-    loadIFC(URL.createObjectURL(file));
-  }
-});
 
 if(fileUrl) loadIFC(fileUrl);
 
-// PROPS
-function normalize(name){
-  return String(name).toUpperCase().replaceAll("_"," ").trim();
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene,camera);
 }
+animate();
 
-async function showProps(id){
-  const sets = await ifcLoader.ifcManager.getPropertySets(modelID,id,true);
-
-  const pset = sets.find(s => normalize(s.Name)==="PSET SPOL EV");
-
-  if(!pset){
-    propertiesPanel.innerHTML = "Sem PSet_SPOL_EV";
-    return;
-  }
-
-  let html = "<div class='prop-title'>PSet SPOL EV</div>";
-
-  (pset.HasProperties||[]).forEach(p=>{
-    html += `<div class='prop-row'><div>${p.Name}</div><div>${p.NominalValue?.value}</div></div>`;
-  });
-
-  propertiesPanel.innerHTML = html;
-}
-
-// HIGHLIGHT CORRETO
-function highlight(id){
-
-  if(selectedSubset){
-    ifcLoader.ifcManager.removeSubset(modelID);
-    selectedSubset = null;
-  }
-
-  selectedSubset = ifcLoader.ifcManager.createSubset({
-    modelID: modelID,
-    ids: [id],
-    scene: scene,
-    removePrevious: true,
-    material: new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      transparent:true,
-      opacity:0.5,
-      depthTest:false,
-      depthWrite:false
-    })
-  });
-}
-
-// CLICK (🔥 CORRETO)
-renderer.domElement.addEventListener("click", async (event) => {
-
-  if (!currentModel) return;
-
-  const bounds = renderer.domElement.getBoundingClientRect();
-
-  const x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
-  const y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
-
-  const mouse = new THREE.Vector2(x, y);
-
-  const raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera(mouse, camera);
-
-  const intersects = raycaster.intersectObject(currentModel, true);
-
-  if (!intersects.length) return;
-
-  const intersection = intersects[0];
-
-  const expressID = ifcLoader.ifcManager.getExpressId(
-    intersection.object.geometry,
-    intersection.faceIndex
-  );
-
-  if (!expressID) return;
-
-  // 🔥 limpa highlight anterior corretamente
-  if (selectedSubset) {
-    ifcLoader.ifcManager.removeSubset(modelID);
-    selectedSubset = null;
-  }
-
-  // 🔥 cria highlight isolado
-  selectedSubset = ifcLoader.ifcManager.createSubset({
-    modelID: modelID,
-    ids: [expressID],
-    scene: scene,
-    removePrevious: true,
-    material: new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      transparent: true,
-      opacity: 0.4,
-      depthTest: false,
-      depthWrite: false
-    })
-  });
-
-  // 🔥 mostra propriedades corretas
-async function showProps(id){
-
-  let psets = [];
-
-  // 🔹 propriedades diretas
-  const direct = await ifcLoader.ifcManager.getPropertySets(modelID, id, true);
-  if (direct) psets = psets.concat(direct);
-
-  // 🔹 propriedades via TYPE (ESSENCIAL)
-  const type = await ifcLoader.ifcManager.getTypeProperties(modelID, id, true);
-  if (type) psets = psets.concat(type);
-
-  // 🔹 procura PSET_SPOL_EV
-  const pset = psets.find(s =>
-    String(s.Name).toUpperCase().replaceAll("_"," ").includes("PSET SPOL EV")
-  );
-
-  if(!pset){
-    propertiesPanel.innerHTML = "Sem PSet_SPOL_EV";
-    return;
-  }
-
-  let html = "<div class='prop-title'>PSet SPOL EV</div>";
-
-  (pset.HasProperties || []).forEach(p=>{
-    const name = p.Name;
-    const value = p.NominalValue?.value;
-
-    html += `
-      <div class='prop-row'>
-        <div>${name}</div>
-        <div>${value}</div>
-      </div>
-    `;
-  });
-
-  propertiesPanel.innerHTML = html;
-}
 </script>
 
 </body>
