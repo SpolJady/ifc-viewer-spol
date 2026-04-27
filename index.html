@@ -80,11 +80,31 @@ async function loadIFC(url){
   model = m;
   scene.add(m);
 
-  const box = new THREE.Box3().setFromObject(m);
-  const center = box.getCenter(new THREE.Vector3());
-  m.position.sub(center);
+const box = new THREE.Box3().setFromObject(m);
+const center = box.getCenter(new THREE.Vector3());
+const size = box.getSize(new THREE.Vector3());
 
-  document.getElementById("status").innerText = "Modelo carregado";
+m.position.sub(center);
+
+// recalcula depois de centralizar
+const newBox = new THREE.Box3().setFromObject(m);
+
+// coloca o grid abaixo do modelo
+grid.position.y = newBox.min.y - 0.5;
+
+// ajusta câmera
+const maxDim = Math.max(size.x, size.y, size.z);
+const dist = maxDim * 1.5;
+
+camera.position.set(dist, dist, dist);
+camera.near = maxDim / 100;
+camera.far = maxDim * 100;
+camera.updateProjectionMatrix();
+
+controls.target.set(0, 0, 0);
+controls.update();
+
+document.getElementById("status").innerText = "Modelo carregado";
 }
 
 if(fileUrl) loadIFC(fileUrl);
