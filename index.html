@@ -1,37 +1,37 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>Viewer IFC</title>
+<meta charset="UTF-8" />
+<title>Viewer IFC</title>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
-      "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
-      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
-    }
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
+    "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
+    "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
   }
-  </script>
+}
+</script>
 
-  <style>
-    body { margin:0; overflow:hidden; font-family:Arial; background:#f2f2f2; }
+<style>
+body { margin:0; overflow:hidden; font-family:Arial; background:#f2f2f2; }
 
-    #viewer-container { width:100vw; height:100vh; }
+#viewer-container { width:100vw; height:100vh; }
 
-    #panel {
-      position:absolute; top:12px; left:12px;
-      width:300px; max-height:85vh;
-      overflow:auto;
-      background:white; padding:12px;
-      border-radius:8px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.25);
-      font-size:13px;
-    }
+#panel {
+  position:absolute; top:12px; left:12px;
+  width:300px; max-height:85vh;
+  overflow:auto;
+  background:white; padding:12px;
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.25);
+  font-size:13px;
+}
 
-    .prop-title { font-weight:bold; margin-top:10px; }
-    .prop-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #eee; }
-  </style>
+.prop-title { font-weight:bold; margin-top:10px; }
+.prop-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #eee; }
+</style>
 </head>
 
 <body>
@@ -59,6 +59,7 @@ const fileUrl = urlParams.get("file");
 const projectName = urlParams.get("nome") || "Projeto";
 document.getElementById("project-title").innerText = decodeURIComponent(projectName);
 
+// SCENE
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf2f2f2);
 
@@ -72,21 +73,32 @@ container.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
+// LIGHT
 scene.add(new THREE.AmbientLight(0xffffff,0.8));
 const light = new THREE.DirectionalLight(0xffffff,1);
 light.position.set(20,40,20);
 scene.add(light);
 
+// GRID
 const grid = new THREE.GridHelper(100,100);
 scene.add(grid);
 
+// IFC
 const ifcLoader = new IFCLoader();
 ifcLoader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
+
+// 🔥 PRECISÃO DE CLIQUE (ESSENCIAL)
+ifcLoader.ifcManager.setupThreeMeshBVH(
+  THREE.Mesh.prototype.computeBoundsTree,
+  THREE.Mesh.prototype.disposeBoundsTree,
+  THREE.Mesh.prototype.acceleratedRaycast
+);
 
 let currentModel = null;
 let currentModelID = 0;
 let selectedSubset = null;
 
+// LOAD IFC
 async function loadIFC(url){
   status.innerText = "Carregando...";
 
@@ -108,6 +120,7 @@ async function loadIFC(url){
   status.innerText = "Modelo carregado";
 }
 
+// FILE INPUT
 document.getElementById("file-input").addEventListener("change", e=>{
   const file = e.target.files[0];
   if(file){
@@ -117,10 +130,12 @@ document.getElementById("file-input").addEventListener("change", e=>{
 
 if(fileUrl) loadIFC(fileUrl);
 
+// HELPERS
 function normalizeName(name){
   return String(name).toUpperCase().replaceAll("_"," ").trim();
 }
 
+// PROPRIEDADES
 async function showProps(id){
   const sets = await ifcLoader.ifcManager.getPropertySets(currentModelID,id,true);
 
@@ -140,26 +155,35 @@ async function showProps(id){
   propertiesPanel.innerHTML = html;
 }
 
-function highlight(id){
+// 🔥 HIGHLIGHT CORRETO
+function highlight(expressID){
+
   if(selectedSubset){
-    ifcLoader.ifcManager.removeSubset(currentModelID, undefined, selectedSubset.material);
+    ifcLoader.ifcManager.removeSubset(
+      currentModelID,
+      undefined,
+      selectedSubset.material
+    );
     selectedSubset = null;
   }
 
+  const material = new THREE.MeshLambertMaterial({
+    color: 0xffff00,
+    transparent: true,
+    opacity: 0.6,
+    depthTest: false
+  });
+
   selectedSubset = ifcLoader.ifcManager.createSubset({
     modelID: currentModelID,
-    ids: [id],
-    material: new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      transparent:true,
-      opacity:0.4,
-      depthTest:false
-    }),
+    ids: [expressID],
+    material: material,
     scene: scene,
     removePrevious: true
   });
 }
 
+// CLICK
 renderer.domElement.addEventListener("click", async (event)=>{
 
   const mouse = new THREE.Vector2(
@@ -181,17 +205,22 @@ renderer.domElement.addEventListener("click", async (event)=>{
 
   highlight(expressID);
   showProps(expressID);
-
 });
 
+// LOOP
 function animate(){
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene,camera);
 }
-
 animate();
 
+window.addEventListener("resize",()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 </script>
+
 </body>
 </html>
