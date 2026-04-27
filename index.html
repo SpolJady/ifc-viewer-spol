@@ -64,6 +64,7 @@
     .prop-title {
       font-weight: bold;
       margin: 8px 0 4px;
+      font-size: 14px;
     }
 
     .prop-row {
@@ -71,18 +72,20 @@
       justify-content: space-between;
       gap: 10px;
       border-bottom: 1px solid #eee;
-      padding: 4px 0;
+      padding: 5px 0;
     }
 
     .prop-key {
       font-weight: bold;
       color: #333;
+      max-width: 50%;
     }
 
     .prop-value {
       color: #555;
       text-align: right;
       word-break: break-word;
+      max-width: 50%;
     }
   </style>
 </head>
@@ -91,14 +94,9 @@
 
   <div id="panel">
     <div id="project-title">Projeto</div>
-
     <input type="file" id="file-input" accept=".ifc" />
-
     <div id="status">Aguardando arquivo IFC...</div>
-
-    <div id="properties">
-      Clique em um elemento para ver propriedades.
-    </div>
+    <div id="properties">Clique em um elemento para ver o PSet SPOL EV.</div>
   </div>
 
   <div id="viewer-container"></div>
@@ -128,7 +126,6 @@
       0.1,
       100000
     );
-
     camera.position.set(30, 30, 30);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -150,7 +147,6 @@
     scene.add(grid);
 
     const ifcLoader = new IFCLoader();
-
     ifcLoader.ifcManager.setWasmPath(
       "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/"
     );
@@ -160,7 +156,7 @@
 
     async function loadIFC(url) {
       status.innerText = "Carregando IFC...";
-      propertiesPanel.innerHTML = "Clique em um elemento para ver propriedades.";
+      propertiesPanel.innerHTML = "Clique em um elemento para ver o PSet SPOL EV.";
 
       try {
         if (currentModel) {
@@ -220,75 +216,48 @@
       return value;
     }
 
-    function renderProperties(title, data) {
-      let html = `<div class="prop-title">${title}</div>`;
-
-      for (const key in data) {
-        const value = formatIFCValue(data[key]);
-
-        if (
-          value === "" ||
-          key === "type" ||
-          key === "expressID" ||
-          typeof value === "object"
-        ) {
-          continue;
-        }
-
-        html += `
-          <div class="prop-row">
-            <div class="prop-key">${key}</div>
-            <div class="prop-value">${value}</div>
-          </div>
-        `;
-      }
-
-      return html;
+    function normalizePsetName(name) {
+      return String(formatIFCValue(name))
+        .toUpperCase()
+        .replaceAll("_", " ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     async function showElementProperties(expressID) {
       try {
-        const itemProps = await ifcLoader.ifcManager.getItemProperties(
-          currentModelID,
-          expressID,
-          true
-        );
-
         const propertySets = await ifcLoader.ifcManager.getPropertySets(
           currentModelID,
           expressID,
           true
         );
 
-        let html = "";
-
-        html += renderProperties("Elemento", itemProps);
-
         const psetSPOL = propertySets.find(pset => {
-          const name = formatIFCValue(pset.Name);
-          return name === "Pset_SPOL_EV";
+          const name = normalizePsetName(pset.Name);
+          return name === "PSET SPOL EV";
         });
 
-        if (psetSPOL) {
-          html += `<div class="prop-title">Pset_SPOL_EV</div>`;
+        if (!psetSPOL) {
+          propertiesPanel.innerHTML = `
+            <div class="prop-title">PSet SPOL EV</div>
+            <div>Este elemento não possui PSet SPOL EV.</div>
+          `;
+          return;
+        }
 
-          const props = psetSPOL.HasProperties || [];
+        let html = `<div class="prop-title">PSet SPOL EV</div>`;
 
-          for (const prop of props) {
-            const name = formatIFCValue(prop.Name);
-            const value = formatIFCValue(prop.NominalValue);
+        const props = psetSPOL.HasProperties || [];
 
-            html += `
-              <div class="prop-row">
-                <div class="prop-key">${name}</div>
-                <div class="prop-value">${value}</div>
-              </div>
-            `;
-          }
-        } else {
+        for (const prop of props) {
+          const name = formatIFCValue(prop.Name);
+          const value = formatIFCValue(prop.NominalValue);
+
           html += `
-            <div class="prop-title">Pset_SPOL_EV</div>
-            <div>Este elemento não possui Pset_SPOL_EV.</div>
+            <div class="prop-row">
+              <div class="prop-key">${name}</div>
+              <div class="prop-value">${value}</div>
+            </div>
           `;
         }
 
@@ -318,6 +287,7 @@
       if (intersects.length === 0) return;
 
       const intersection = intersects[0];
+
       const expressID = ifcLoader.ifcManager.getExpressId(
         intersection.object.geometry,
         intersection.faceIndex
