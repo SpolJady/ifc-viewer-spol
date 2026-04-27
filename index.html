@@ -8,25 +8,18 @@
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
-
-    "three/examples/jsm/controls/OrbitControls.js":
-    "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
-
+    "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js",
     "three/examples/jsm/utils/BufferGeometryUtils":
     "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/utils/BufferGeometryUtils.js",
-
     "three/examples/jsm/utils/BufferGeometryUtils.js":
     "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/utils/BufferGeometryUtils.js",
-
-    "web-ifc":
-    "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
+    "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/web-ifc-api.js"
   }
 }
 </script>
 
 <style>
 body { margin:0; overflow:hidden; font-family:Arial; background:#f2f2f2; }
-
 #viewer-container { width:100vw; height:100vh; }
 
 #panel {
@@ -60,13 +53,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { IFCLoader } from "https://cdn.jsdelivr.net/npm/web-ifc-three@0.0.126/IFCLoader.js";
 
-const container = document.getElementById("viewer-container");
+// UI
 const status = document.getElementById("status");
 const propertiesPanel = document.getElementById("properties");
 
-const urlParams = new URLSearchParams(window.location.search);
-const fileUrl = urlParams.get("file");
-const projectName = urlParams.get("nome") || "Projeto";
+const params = new URLSearchParams(window.location.search);
+const fileUrl = params.get("file");
+const projectName = params.get("nome") || "Projeto";
 document.getElementById("project-title").innerText = decodeURIComponent(projectName);
 
 // SCENE
@@ -78,7 +71,7 @@ camera.position.set(30,30,30);
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
-container.appendChild(renderer.domElement);
+document.getElementById("viewer-container").appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -97,18 +90,11 @@ scene.add(grid);
 const ifcLoader = new IFCLoader();
 ifcLoader.ifcManager.setWasmPath("https://cdn.jsdelivr.net/npm/web-ifc@0.0.47/");
 
-// 🔥 PRECISÃO DE CLIQUE (ESSENCIAL)
-ifcLoader.ifcManager.setupThreeMeshBVH(
-  THREE.Mesh.prototype.computeBoundsTree,
-  THREE.Mesh.prototype.disposeBoundsTree,
-  THREE.Mesh.prototype.acceleratedRaycast
-);
-
 let currentModel = null;
-let currentModelID = 0;
+let modelID = 0;
 let selectedSubset = null;
 
-// LOAD IFC
+// LOAD
 async function loadIFC(url){
   status.innerText = "Carregando...";
 
@@ -116,7 +102,7 @@ async function loadIFC(url){
 
   const model = await ifcLoader.loadAsync(url);
   currentModel = model;
-  currentModelID = model.modelID;
+  modelID = model.modelID;
 
   scene.add(model);
 
@@ -140,16 +126,15 @@ document.getElementById("file-input").addEventListener("change", e=>{
 
 if(fileUrl) loadIFC(fileUrl);
 
-// HELPERS
-function normalizeName(name){
+// PROPS
+function normalize(name){
   return String(name).toUpperCase().replaceAll("_"," ").trim();
 }
 
-// PROPRIEDADES
 async function showProps(id){
-  const sets = await ifcLoader.ifcManager.getPropertySets(currentModelID,id,true);
+  const sets = await ifcLoader.ifcManager.getPropertySets(modelID,id,true);
 
-  const pset = sets.find(s => normalizeName(s.Name)==="PSET SPOL EV");
+  const pset = sets.find(s => normalize(s.Name)==="PSET SPOL EV");
 
   if(!pset){
     propertiesPanel.innerHTML = "Sem PSet_SPOL_EV";
@@ -165,36 +150,33 @@ async function showProps(id){
   propertiesPanel.innerHTML = html;
 }
 
-// 🔥 HIGHLIGHT CORRETO
-function highlight(expressID){
+// HIGHLIGHT CORRETO
+function highlight(id){
 
   if(selectedSubset){
-    ifcLoader.ifcManager.removeSubset(
-      currentModelID,
-      undefined,
-      selectedSubset.material
-    );
+    ifcLoader.ifcManager.removeSubset(modelID);
     selectedSubset = null;
   }
 
-  const material = new THREE.MeshLambertMaterial({
-    color: 0xffff00,
-    transparent: true,
-    opacity: 0.6,
-    depthTest: false
-  });
-
   selectedSubset = ifcLoader.ifcManager.createSubset({
-    modelID: currentModelID,
-    ids: [expressID],
-    material: material,
+    modelID: modelID,
+    ids: [id],
     scene: scene,
-    removePrevious: true
+    removePrevious: true,
+    material: new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      transparent:true,
+      opacity:0.5,
+      depthTest:false,
+      depthWrite:false
+    })
   });
 }
 
-// CLICK
+// CLICK (🔥 CORRETO)
 renderer.domElement.addEventListener("click", async (event)=>{
+
+  if(!currentModel) return;
 
   const mouse = new THREE.Vector2(
     (event.clientX/window.innerWidth)*2-1,
@@ -204,6 +186,7 @@ renderer.domElement.addEventListener("click", async (event)=>{
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(mouse,camera);
 
+  // 🔥 SEMPRE clicar no modelo original
   const found = raycaster.intersectObject(currentModel,true);
 
   if(!found.length) return;
