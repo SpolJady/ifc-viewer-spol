@@ -174,30 +174,57 @@ function highlight(id){
 }
 
 // CLICK (🔥 CORRETO)
-renderer.domElement.addEventListener("click", async (event)=>{
+renderer.domElement.addEventListener("click", async (event) => {
 
-  if(!currentModel) return;
+  if (!currentModel) return;
 
-  const mouse = new THREE.Vector2(
-    (event.clientX/window.innerWidth)*2-1,
-    -(event.clientY/window.innerHeight)*2+1
-  );
+  const bounds = renderer.domElement.getBoundingClientRect();
+
+  const x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+  const y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+
+  const mouse = new THREE.Vector2(x, y);
 
   const raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera(mouse,camera);
+  raycaster.setFromCamera(mouse, camera);
 
-  // 🔥 SEMPRE clicar no modelo original
-  const found = raycaster.intersectObject(currentModel,true);
+  const intersects = raycaster.intersectObject(currentModel, true);
 
-  if(!found.length) return;
+  if (!intersects.length) return;
+
+  const intersection = intersects[0];
 
   const expressID = ifcLoader.ifcManager.getExpressId(
-    found[0].object.geometry,
-    found[0].faceIndex
+    intersection.object.geometry,
+    intersection.faceIndex
   );
 
-  highlight(expressID);
+  if (!expressID) return;
+
+  // 🔥 limpa highlight anterior corretamente
+  if (selectedSubset) {
+    ifcLoader.ifcManager.removeSubset(modelID);
+    selectedSubset = null;
+  }
+
+  // 🔥 cria highlight isolado
+  selectedSubset = ifcLoader.ifcManager.createSubset({
+    modelID: modelID,
+    ids: [expressID],
+    scene: scene,
+    removePrevious: true,
+    material: new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: 0.4,
+      depthTest: false,
+      depthWrite: false
+    })
+  });
+
+  // 🔥 mostra propriedades corretas
   showProps(expressID);
+
 });
 
 // LOOP
