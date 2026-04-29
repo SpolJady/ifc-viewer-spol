@@ -167,7 +167,6 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100000
 );
-camera.position.set(20, 20, 20);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -241,34 +240,34 @@ async function loadIFC(url) {
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    // CENTRALIZA O MODELO NO ORIGEM
-model.position.set(
-  -center.x,
-  -center.y,
-  -center.z
-);
+    // Centraliza o modelo no centro da cena
+    model.position.set(
+      -center.x,
+      -center.y,
+      -center.z
+    );
 
     addGlobalEdges();
 
     const newBox = new THREE.Box3().setFromObject(model);
     grid.position.y = newBox.min.y - 0.5;
 
-const maxDim = Math.max(size.x, size.y, size.z);
+    // Vista inicial mais próxima e centralizada
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const dist = maxDim * 0.95;
 
-// distância ideal (ajuste fino)
-const dist = maxDim * 0.9;
+    camera.position.set(
+      dist * 0.9,
+      dist * 0.7,
+      dist * 1.05
+    );
 
-// câmera levemente inclinada (boa para apresentação)
-camera.position.set(dist, dist * 0.7, dist);
+    camera.near = maxDim / 100;
+    camera.far = maxDim * 100;
+    camera.updateProjectionMatrix();
 
-// garante que olha exatamente para o centro
-controls.target.set(0, 0, 0);
-controls.update();
-
-// ajustes técnicos
-camera.near = maxDim / 100;
-camera.far = maxDim * 100;
-camera.updateProjectionMatrix();
+    controls.target.set(0, 0, 0);
+    controls.update();
 
     status.innerText = "Modelo carregado.";
 
