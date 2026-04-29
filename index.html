@@ -249,9 +249,9 @@ async function loadIFC(url) {
     grid.position.y = newBox.min.y - 0.5;
 
     const maxDim = Math.max(size.x, size.y, size.z);
-    const dist = maxDim * 0.95;
+    const dist = maxDim * 0.75;  //set do zoom perspectiva 
 
-    camera.position.set(dist * 0.9, dist * 0.75, dist * 1.05);
+    camera.position.set(dist * 0.9, dist * 0.75, dist * 1.05); // configuração de camera para isométrica PDF
     camera.near = maxDim / 100;
     camera.far = maxDim * 100;
     camera.updateProjectionMatrix();
