@@ -241,23 +241,34 @@ async function loadIFC(url) {
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    model.position.sub(center);
+    // CENTRALIZA O MODELO NO ORIGEM
+model.position.set(
+  -center.x,
+  -center.y,
+  -center.z
+);
 
     addGlobalEdges();
 
     const newBox = new THREE.Box3().setFromObject(model);
     grid.position.y = newBox.min.y - 0.5;
 
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const dist = maxDim * 0.85;  //set do zoom perspectiva 
+const maxDim = Math.max(size.x, size.y, size.z);
 
-    camera.position.set(dist * 0.9, dist * 0.75, dist * 1.05); // configuração de camera para isométrica PDF
-    camera.near = maxDim / 100;
-    camera.far = maxDim * 100;
-    camera.updateProjectionMatrix();
+// distância ideal (ajuste fino)
+const dist = maxDim * 0.9;
 
-    controls.target.set(0, 0, 0);
-    controls.update();
+// câmera levemente inclinada (boa para apresentação)
+camera.position.set(dist, dist * 0.7, dist);
+
+// garante que olha exatamente para o centro
+controls.target.set(0, 0, 0);
+controls.update();
+
+// ajustes técnicos
+camera.near = maxDim / 100;
+camera.far = maxDim * 100;
+camera.updateProjectionMatrix();
 
     status.innerText = "Modelo carregado.";
 
