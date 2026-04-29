@@ -254,12 +254,12 @@ async function loadIFC(url) {
 
     // Vista inicial mais próxima e centralizada
     const maxDim = Math.max(size.x, size.y, size.z);
-    const dist = maxDim * 0.95;
+    const dist = maxDim * 0.80;
 
     camera.position.set(
       dist * 0.9,
       dist * 0.7,
-      dist * 0.95
+      dist * 1.05
     );
 
     camera.near = maxDim / 100;
