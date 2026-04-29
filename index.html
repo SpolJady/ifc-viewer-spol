@@ -193,6 +193,7 @@ let model = null;
 let modelID = null;
 let selectedSubset = null;
 let edgeLines = null;
+let globalEdges = null;
 
 const highlightMaterial = new THREE.MeshBasicMaterial({
   color: 0xffff00,
@@ -208,6 +209,14 @@ const edgeMaterial = new THREE.LineBasicMaterial({
   depthWrite: false
 });
 
+const globalEdgeMaterial = new THREE.LineBasicMaterial({
+  color: 0x000000,
+  transparent: true,
+  opacity: 0.28,
+  depthTest: true,
+  depthWrite: false
+});
+
 async function loadIFC(url) {
   try {
     status.innerText = "Carregando modelo...";
@@ -219,6 +228,7 @@ async function loadIFC(url) {
     }
 
     clearSelection();
+    clearGlobalEdges();
 
     const loadedModel = await loader.loadAsync(url);
 
@@ -232,6 +242,8 @@ async function loadIFC(url) {
     const size = box.getSize(new THREE.Vector3());
 
     model.position.sub(center);
+
+    addGlobalEdges();
 
     const newBox = new THREE.Box3().setFromObject(model);
     grid.position.y = newBox.min.y - 0.5;
@@ -252,6 +264,30 @@ async function loadIFC(url) {
   } catch (error) {
     console.error(error);
     status.innerText = "Erro ao carregar modelo. Veja o Console.";
+  }
+}
+
+function addGlobalEdges() {
+  if (!model || !model.geometry) return;
+
+  clearGlobalEdges();
+
+  const edgesGeometry = new THREE.EdgesGeometry(model.geometry, 15);
+  globalEdges = new THREE.LineSegments(edgesGeometry, globalEdgeMaterial);
+
+  globalEdges.position.copy(model.position);
+  globalEdges.rotation.copy(model.rotation);
+  globalEdges.scale.copy(model.scale);
+  globalEdges.renderOrder = 10;
+
+  scene.add(globalEdges);
+}
+
+function clearGlobalEdges() {
+  if (globalEdges) {
+    scene.remove(globalEdges);
+    globalEdges.geometry.dispose();
+    globalEdges = null;
   }
 }
 
@@ -369,7 +405,7 @@ function highlightElement(expressID) {
     selectedSubset.scale.copy(model.scale);
     selectedSubset.renderOrder = 999;
 
-    const edgesGeometry = new THREE.EdgesGeometry(selectedSubset.geometry);
+    const edgesGeometry = new THREE.EdgesGeometry(selectedSubset.geometry, 15);
     edgeLines = new THREE.LineSegments(edgesGeometry, edgeMaterial);
 
     edgeLines.position.copy(selectedSubset.position);
